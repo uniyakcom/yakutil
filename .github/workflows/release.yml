@@ -1,0 +1,163 @@
+# release.yml — 自动化发布草稿
+#
+# 职责：每次 push 到 main 后，自动扫描自上次 Tag 以来的 Conventional Commits，
+#       计算下一个语义化版本号，创建/更新 GitHub Releases 草稿。
+#
+# 发布流程（无需 PR）：
+#   push to main → 本 workflow 自动更新草稿 Release
+#   → 维护者在 GitHub Releases 页面确认后点击 Publish（同时自动创建 Tag）
+#
+# 版本计算规则（基于 Conventional Commits）：
+#   BREAKING CHANGE / feat!: / fix!: → major 递增
+#   feat:                            → minor 递增
+#   其余（fix/perf/refactor/docs 等） → patch 递增
+name: Release
+
+on:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: write
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: false
+
+      - name: Update release draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          MODULE=$(go mod edit -json | jq -r .Module.Path)
+
+          # 找到最新的语义化 tag（v*），无 tag 时从初始提交开始
+          LAST_TAG=$(git tag -l 'v[0-9]*' --sort=-version:refname | head -1)
+
+          if [ -z "$LAST_TAG" ]; then
+            RANGE="HEAD"
+            INITIAL_RELEASE=true
+          else
+            RANGE="${LAST_TAG}..HEAD"
+            BASE_VERSION="${LAST_TAG#v}"
+            INITIAL_RELEASE=false
+          fi
+
+          # 无新提交时跳过
+          COMMIT_COUNT=$(git rev-list --count "$RANGE" 2>/dev/null || echo "0")
+          if [ "$COMMIT_COUNT" -eq 0 ]; then
+            echo "No new commits since ${LAST_TAG:-beginning}, skipping."
+            exit 0
+          fi
+
+          # ── 用临时文件收集各分类条目 ──────────────────────────────────────
+          TMP=$(mktemp -d)
+          touch "$TMP/features" "$TMP/fixes" "$TMP/perf" "$TMP/docs" "$TMP/tests" "$TMP/deps" "$TMP/misc"
+          HAS_BREAKING=false
+          HAS_FEAT=false
+
+          while IFS= read -r line; do
+            SHA="${line%% *}"
+            MSG="${line#* }"
+            SHORT="${SHA:0:7}"
+            URL="https://github.com/${{ github.repository }}/commit/${SHA}"
+            ENTRY="- ${MSG} ([${SHORT}](${URL}))"
+
+            # BREAKING CHANGE 检测（feat!: / fix!: / 任意类型!: / 正文含 BREAKING CHANGE）
+            if echo "$MSG" | grep -qE '^(feat|fix)(\(.+\))?!:|^.+!:|BREAKING[[:space:]]CHANGE'; then
+              HAS_BREAKING=true
+            fi
+
+            if echo "$MSG" | grep -qE '^feat(\(.+\))?:'; then
+              HAS_FEAT=true
+              echo "$ENTRY" >> "$TMP/features"
+            elif echo "$MSG" | grep -qE '^fix(\(.+\))?:'; then
+              echo "$ENTRY" >> "$TMP/fixes"
+            elif echo "$MSG" | grep -qE '^(perf|refactor|opt)(\(.+\))?:'; then
+              echo "$ENTRY" >> "$TMP/perf"
+            elif echo "$MSG" | grep -qE '^docs?(\(.+\))?:'; then
+              echo "$ENTRY" >> "$TMP/docs"
+            elif echo "$MSG" | grep -qE '^tests?(\(.+\))?:'; then
+              echo "$ENTRY" >> "$TMP/tests"
+            elif echo "$MSG" | grep -qE '^(build|dep|deps|vendor)(\(.+\))?:'; then
+              echo "$ENTRY" >> "$TMP/deps"
+            else
+              # chore / ci / style / revert / 其他均归入 Misc
+              echo "$ENTRY" >> "$TMP/misc"
+            fi
+          done < <(git log --pretty=tformat:"%H %s" "$RANGE")
+
+          # ── 计算下一个版本号 ──────────────────────────────────────────────
+          if [ "$INITIAL_RELEASE" = true ]; then
+            NEXT="v1.0.0"
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+            if [ "$HAS_BREAKING" = true ]; then
+              MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
+            elif [ "$HAS_FEAT" = true ]; then
+              MINOR=$((MINOR + 1)); PATCH=0
+            else
+              PATCH=$((PATCH + 1))
+            fi
+            NEXT="v${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
+          # ── 组装 Release Notes（写入临时文件）────────────────────────────
+          NOTES_FILE="$TMP/notes.md"
+
+          append_section() {
+            local title="$1"
+            local file="$2"
+            if [ -s "$file" ]; then
+              echo "### ${title}" >> "$NOTES_FILE"
+              echo "" >> "$NOTES_FILE"
+              cat "$file" >> "$NOTES_FILE"
+              echo "" >> "$NOTES_FILE"
+            fi
+          }
+
+          append_section "🚀 新功能 (Features)"        "$TMP/features"
+          append_section "🐛 问题修复 (Bug Fixes)"       "$TMP/fixes"
+          append_section "🛩 性能优化 (Enhancements)"    "$TMP/perf"
+          append_section "📚 文档更新 (Documentation)"   "$TMP/docs"
+          append_section "🧪 测试用例 (Tests)"           "$TMP/tests"
+          append_section "📦 依赖更新 (Dependencies)"    "$TMP/deps"
+          append_section "🗃 其他变更 (Misc)"            "$TMP/misc"
+
+          {
+            echo "---"
+            echo ""
+            echo "**Install**"
+            echo ""
+            echo '```'
+            echo "go get ${MODULE}@${NEXT}"
+            echo '```'
+          } >> "$NOTES_FILE"
+
+          echo "=== Release Notes Preview ==="
+          cat "$NOTES_FILE"
+          echo "============================="
+
+          # ── 删除旧草稿（若存在），创建新草稿 ─────────────────────────────
+          OLD_DRAFT=$(gh release list --json tagName,isDraft \
+            --jq '.[] | select(.isDraft) | .tagName' | head -1 || true)
+          if [ -n "$OLD_DRAFT" ]; then
+            gh release delete "$OLD_DRAFT" --yes 2>/dev/null || true
+          fi
+
+          gh release create "$NEXT" \
+            --draft \
+            --title "$NEXT" \
+            --notes-file "$NOTES_FILE"
+
+          echo "✅ Draft release $NEXT created (${COMMIT_COUNT} commits since ${LAST_TAG:-beginning})."

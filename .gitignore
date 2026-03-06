@@ -1,0 +1,17 @@
+fuzz_logs/
+*.exe
+*.test
+*.out
+*.prof
+*.trace
+_pprof/
+.idea/
+!.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+vendor/
+*.log

@@ -1,0 +1,49 @@
+# format.yml — 代码格式与静态分析门禁
+#
+# 职责：确保所有提交到 main 的代码符合 gofmt 标准，并通过 go vet 静态分析。
+# 触发：push to main/master 和 Pull Request。
+# 失败时：阻止 PR 合并（需在仓库 Branch Rules 中将本工作流设为必须通过的状态检查）。
+name: Lint
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+# 同一分支/PR 有新提交时取消旧运行，避免 runner 积压
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      # gofmt -l 列出未格式化的文件（排除 _vendor 等下划线开头目录）
+      # 有任何文件未格式化则打印提示并以 exit 1 失败
+      - name: Check formatting
+        run: |
+          BAD=$(gofmt -l . | grep -v '^_' || true)
+          if [ -n "$BAD" ]; then
+            echo "❌ 以下文件未格式化:"
+            echo "$BAD"
+            echo ""
+            echo "请运行: gofmt -w ."
+            exit 1
+          fi
+          echo "✅ 格式检查通过"
+
+      # go vet 检查常见错误：错误的格式化动词、不可达代码、互斥锁复制等
+      - name: Vet
+        run: go vet ./...

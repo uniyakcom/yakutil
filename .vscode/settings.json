@@ -1,0 +1,7 @@
+{
+	"github.copilot.chat.commitMessageGeneration.instructions": [
+		{
+			"text": "使用中文生成 Git 提交消息，严格遵循 Conventional Commits 规范。格式：<类型>[可选作用域]: <描述>。描述使用中文，不超过 50 字。\n\n破坏性变更有两种等价写法，均触发 major 版本递增：\n1. 类型后加 !：feat!: 移除旧 API（简洁，推荐）\n2. 正文/脚注写 BREAKING CHANGE:：适合需要详细说明的场景\n! 可附加在任意类型上，不限于 feat，例如 fix!:、refactor!: 均合法。\n\n类型选择规则（按优先级判断，命中即止）：\n- revert: 回滚某次提交\n- fix: 修正错误行为、panic、边界条件、返回值错误\n- perf: 仅优化性能，逻辑不变（如算法替换、减少内存分配）\n- test: 仅新增或修改测试文件（*_test.go），不含生产代码变更\n- docs: 仅修改注释、godoc、README、.md 文件\n- ci: 仅修改 .github/workflows、.githooks、CI 配置\n- build: 仅修改 go.mod、go.sum、Makefile、构建脚本\n- chore: 仅修改 .gitignore、.vscode、格式化、无逻辑变更的重命名\n- style: 仅调整代码格式（空白、换行），不改变任何逻辑\n- refactor: 重构已有逻辑（既不修 bug 也不加功能，测试不变）\n- feat: 新增对外可见的功能或导出 API（以上类型均不适用时才用）\n\n作用域（可选）：使用变更的包名或子目录名，如 lru、ring、smap。"
+		}
+	]
+}

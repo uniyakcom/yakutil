@@ -1,0 +1,36 @@
+#!/bin/sh
+# 提交前自动格式化 Go 代码并运行快速检查
+# 设置: git config core.hooksPath .githooks
+#
+# 执行顺序：
+#   1. gofmt -w  格式化暂存的 .go 文件（自动修复，不阻断）
+#   2. lint.sh --vet  运行 go vet（失败则阻止提交）
+#
+# 若需跳过本钩子（紧急提交）：
+#   git commit --no-verify -m "..."
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)
+
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+# ── 1. 格式化暂存文件 ────────────────────────────────────────────────────────
+echo "🔧 格式化 Go 文件..."
+echo "$STAGED" | xargs gofmt -w
+echo "$STAGED" | xargs git add
+
+# ── 2. go vet 快速检查（失败阻止提交）───────────────────────────────────────
+LINT="$(git rev-parse --show-toplevel)/lint.sh"
+if [ -x "$LINT" ]; then
+  echo "🔍 运行 go vet..."
+  if ! "$LINT" --vet; then
+    echo ""
+    echo "❌ go vet 未通过，提交已阻止。"
+    echo "   修复上述问题后重新提交，或使用 git commit --no-verify 跳过检查。"
+    exit 1
+  fi
+  echo "    ✓ go vet 通过"
+fi
+
+exit 0

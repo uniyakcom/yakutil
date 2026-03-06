@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# lint.sh — 代码质量检查脚本
+#
+# 用法:
+#   ./lint.sh            # 完整检查（vet + golangci-lint）
+#   ./lint.sh --vet      # 仅运行 go vet
+#   ./lint.sh --fix      # 自动修复可修复的问题
+#   ./lint.sh --fmt      # 格式化所有 Go 文件（gofmt -w）
+#   ./lint.sh --test     # 快速测试（go test ./... -race -count=1）
+
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+# 确保 GOPATH/bin 在 PATH 中（golangci-lint 安装位置）
+export PATH="$(go env GOPATH)/bin:$PATH"
+
+VET=false
+FIX=false
+FMT=false
+TEST=false
+
+for arg in "$@"; do
+  case $arg in
+    --vet) VET=true ;;
+    --fix)      FIX=true ;;
+    --fmt)      FMT=true ;;
+    --test)     TEST=true ;;
+    *) echo "unknown arg: $arg"; exit 1 ;;
+  esac
+done
+
+# ─── --fmt: 格式化所有 Go 文件 ──────────────────────────────────────────────
+
+if $FMT; then
+  echo "==> gofmt -w ./..."
+  gofmt -w .
+  echo "    ✓ 格式化完成"
+  exit 0
+fi
+
+# ─── --test: 快速测试 ────────────────────────────────────────────────────────
+
+if $TEST; then
+  echo "==> go test ./... -race -count=1 -timeout=120s"
+  go test ./... -race -count=1 -timeout=120s
+  echo "    ✓ 全部测试通过"
+  exit 0
+fi
+
+# ─── go vet ─────────────────────────────────────────────────────────────────
+
+echo "==> go vet ./..."
+go vet ./...
+echo "    ✓ go vet passed (0 issues)"
+
+if $VET; then
+  exit 0
+fi
+
+# ─── golangci-lint ──────────────────────────────────────────────────────────
+
+if ! command -v golangci-lint &>/dev/null; then
+  echo "==> golangci-lint not found, installing latest via official install script..."
+  curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$(go env GOPATH)/bin"
+fi
+
+FIX_FLAG=""
+if $FIX; then
+  FIX_FLAG="--fix"
+fi
+
+echo "==> golangci-lint run ./... ${FIX_FLAG}"
+golangci-lint run ./... $FIX_FLAG
+echo "    ✓ golangci-lint passed"

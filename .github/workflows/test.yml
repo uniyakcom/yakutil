@@ -1,0 +1,75 @@
+# test.yml — 跨平台单元测试与竞态检测
+#
+# 职责：在 ubuntu / windows 下运行全量测试，并开启 -race 检测并发数据竞争。
+# 触发：push to main/master 和 Pull Request。
+# 失败时：阻止 PR 合并（需在仓库 Branch Rules 中将本工作流设为必须通过的状态检查）。
+name: Test
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+# 同一分支/PR 有新提交时取消旧运行，避免 runner 积压
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            go: '1.25'
+          - os: windows-latest
+            go: '1.25'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: false
+
+      # -race:    开启竞态检测（检测并发 map 读写、LRU/ring 等结构的并发误用）
+      # -short:   跳过标记了 testing.Short() 的耗时测试，加快 CI 速度
+      # -count=1: 禁用测试缓存，确保每次都真实执行
+      # -timeout: 单次测试超时保护，防止 hang 卡死 runner
+      - name: Test (race)
+        run: go test ./... -race -short -count=1 -timeout=120s
+
+      # 使用 seed corpus 对 art/lru/ring/hll/sketch 的 Fuzz 目标做烟雾测试。
+      # -fuzztime=1s 仅运行 seed 语料，不进入真正模糊搜索；CI 秒级完成。
+      - name: Fuzz seed smoke (art)
+        run: go test -run='^$' -fuzz=FuzzPutGet        -fuzztime=1s ./art/...
+      - name: Fuzz seed smoke (lru)
+        run: go test -run='^$' -fuzz=FuzzSetGet        -fuzztime=1s ./lru/...
+      - name: Fuzz seed smoke (ring)
+        run: go test -run='^$' -fuzz=FuzzWriteRead     -fuzztime=1s ./ring/...
+      - name: Fuzz seed smoke (hll)
+        run: go test -run='^$' -fuzz=FuzzAdd           -fuzztime=1s ./hll/...
+      - name: Fuzz seed smoke (sketch)
+        run: go test -run='^$' -fuzz=FuzzAdd           -fuzztime=1s ./sketch/...
+
+  # 矩阵 job 名称带平台后缀，无法直接作为 required check。
+  # 此汇总 job 等待所有矩阵完成后以固定名称 "Test / all-pass" 上报统一状态。
+  all-pass:
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all matrix results
+        run: |
+          if [ "${{ needs.test.result }}" != "success" ]; then
+            echo "❌ One or more test matrix jobs failed or were cancelled."
+            exit 1
+          fi
+          echo "✅ All test matrix jobs passed."
