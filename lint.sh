@@ -2,13 +2,14 @@
 # lint.sh — 代码质量检查脚本
 #
 # 用法:
-#   ./lint.sh            # 完整检查（gofmt -w + vet + golangci-lint）
-#   ./lint.sh --vet      # gofmt -w + go vet（跳过 golangci-lint）
-#   ./lint.sh --fix      # gofmt -w + vet + golangci-lint --fix
-#   ./lint.sh --fmt      # 仅格式化（gofmt -w），不运行 vet/lint
+#   ./lint.sh            # 完整检查（gofmt -s -w + vet + golangci-lint）
+#   ./lint.sh --vet      # gofmt -s -w + go vet（跳过 golangci-lint）
+#   ./lint.sh --fix      # gofmt -s -w + vet + golangci-lint --fix
+#   ./lint.sh --fmt      # 仅格式化（gofmt -s -w），不运行 vet/lint
 #   ./lint.sh --test     # 快速测试（go test ./... -race -count=1）
 #
-# 注：gofmt -w 在所有非 --test / --fmt 路径中均自动执行。
+# 注：gofmt -s -w 在所有非 --test / --fmt 路径中均自动执行。
+#     -s 会简化冗余的复合字面量、切片表达式等写法。
 
 set -euo pipefail
 
@@ -35,8 +36,8 @@ done
 # ─── --fmt: 格式化所有 Go 文件 ──────────────────────────────────────────────
 
 if $FMT; then
-  echo "==> gofmt -w ./..."
-  gofmt -w .
+  echo "==> gofmt -s -w ."
+  gofmt -s -w .
   echo "    ✓ 格式化完成"
   exit 0
 fi
@@ -50,10 +51,10 @@ if $TEST; then
   exit 0
 fi
 
-# ─── gofmt -w（默认始终执行）───────────────────────────────────────────────────
+# ─── gofmt -s -w（默认始终执行）──────────────────────────────────────────────
 
-echo "==> gofmt -w ."
-gofmt -w .
+echo "==> gofmt -s -w ."
+gofmt -s -w .
 echo "    ✓ 格式化完成"
 
 # ─── go vet ─────────────────────────────────────────────────────────────────
