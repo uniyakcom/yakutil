@@ -1254,4 +1254,4 @@ CI nightly fuzzing runs automatically via [`.github/workflows/fuzz.yml`](.github
 
 ## License
 
-MIT
+[MIT](LICENSE) © 2026 uniyakcom

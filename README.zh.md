@@ -1255,4 +1255,4 @@ benchstat before.txt after.txt
 
 ## License
 
-MIT
+[MIT](LICENSE) © 2026 uniyakcom
