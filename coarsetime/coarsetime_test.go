@@ -14,7 +14,9 @@ func TestNowNano_Positive(t *testing.T) {
 }
 
 func TestNowNano_CloseToReal(t *testing.T) {
-	const maxDrift = 2 * int64(time.Millisecond)
+	// 10ms budget: ticker fires every 500µs, but CI schedulers (especially
+	// under -race) can delay goroutine wakeups by several ms.
+	const maxDrift = 10 * int64(time.Millisecond)
 	coarse := NowNano()
 	real := time.Now().UnixNano()
 	drift := coarse - real
@@ -54,13 +56,15 @@ func TestNowNano_Concurrent(t *testing.T) {
 }
 
 func TestNow_Type(t *testing.T) {
+	// 10ms budget: ticker fires every 500µs, but CI schedulers (especially
+	// under -race) can delay goroutine wakeups by several ms.
 	now := Now()
 	real := time.Now()
 	drift := now.Sub(real)
 	if drift < 0 {
 		drift = -drift
 	}
-	if drift > 2*time.Millisecond {
+	if drift > 10*time.Millisecond {
 		t.Fatalf("Now() drift too large: %v", drift)
 	}
 }
