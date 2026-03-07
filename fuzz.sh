@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# fuzz_local.sh — 本地逐目标 Fuzz + 崩溃自动检测
+# fuzz.sh — 本地逐目标 Fuzz + 崩溃自动检测
 #
 # yakutil 的 Fuzz 目标分布在多个子包下，用 pkg/target 格式标识。
 #
 # 用法：
-#   ./fuzz_local.sh                              全部目标，每个 1m
-#   ./fuzz_local.sh 2m                           全部目标，自定义时长
-#   ./fuzz_local.sh ring/FuzzWriteRead           单目标（pkg/target），1m
-#   ./fuzz_local.sh ring/FuzzWriteRead 2m        单目标，自定义时长
-#   ./fuzz_local.sh FuzzWriteRead                按目标名搜索（跨包），1m
-#   FUZZ_TIME=10m ./fuzz_local.sh                环境变量指定时长
+#   ./fuzz.sh                              全部目标，每个 1m
+#   ./fuzz.sh 2m                           全部目标，自定义时长
+#   ./fuzz.sh ring/FuzzWriteRead           单目标（pkg/target），1m
+#   ./fuzz.sh ring/FuzzWriteRead 2m        单目标，自定义时长
+#   ./fuzz.sh FuzzWriteRead                按目标名搜索（跨包），1m
+#   FUZZ_TIME=10m ./fuzz.sh                环境变量指定时长
 #
 # Ctrl+C：中断当前目标并继续下一个；再按一次退出整个脚本。
 # 日志：所有输出（含崩溃信息）自动保存到 fuzz_logs/fuzz_<时间戳>.log

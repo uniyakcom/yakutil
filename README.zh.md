@@ -1251,8 +1251,25 @@ go install golang.org/x/perf/cmd/benchstat@latest
 benchstat before.txt after.txt
 ```
 
+### Fuzz 测试
+
+六个包含有 Fuzz 测试：`ring`、`hll`、`ratelimit`、`art`、`lru`、`sketch`。本地 Fuzz 使用 `fuzz.sh`：
+
+```bash
+# 全部目标，每个 5m
+./fuzz.sh
+
+# 单目标，自定义时长
+./fuzz.sh art/FuzzPutGet 2m
+
+# 全部目标，自定义时长
+./fuzz.sh 10m
+```
+
+CI 夜间 Fuzz 任务通过 [`.github/workflows/fuzz.yml`](.github/workflows/fuzz.yml) 自动运行。
+
 ---
 
 ## License
 
-[MIT](LICENSE) © 2026 uniyakcom
+[MIT](LICENSE) © 2026 uniyak.com

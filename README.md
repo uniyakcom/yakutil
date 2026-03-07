@@ -1235,17 +1235,17 @@ benchstat before.txt after.txt
 
 ### Fuzz Testing
 
-Six packages have Fuzz tests: `ring`, `hll`, `ratelimit`, `art`, `lru`, `sketch`. Use `fuzz_local.sh` for local fuzzing:
+Six packages have Fuzz tests: `ring`, `hll`, `ratelimit`, `art`, `lru`, `sketch`. Use `fuzz.sh` for local fuzzing:
 
 ```bash
 # All targets, 5m each
-./fuzz_local.sh
+./fuzz.sh
 
 # Single target, custom duration
-./fuzz_local.sh art/FuzzPutGet 2m
+./fuzz.sh art/FuzzPutGet 2m
 
 # Custom duration for all
-./fuzz_local.sh 10m
+./fuzz.sh 10m
 ```
 
 CI nightly fuzzing runs automatically via [`.github/workflows/fuzz.yml`](.github/workflows/fuzz.yml).
@@ -1254,4 +1254,4 @@ CI nightly fuzzing runs automatically via [`.github/workflows/fuzz.yml`](.github
 
 ## License
 
-[MIT](LICENSE) © 2026 uniyakcom
+[MIT](LICENSE) © 2026 uniyak.com
